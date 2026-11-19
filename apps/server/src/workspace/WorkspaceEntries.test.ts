@@ -176,11 +176,16 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         expect(root.entries.toSorted((a, b) => a.path.localeCompare(b.path))).toEqual([
           { path: "link.txt", kind: "file" },
           { path: "linkdir", kind: "directory" },
+          { path: "outside-link", kind: "directory" },
           { path: "real.txt", kind: "file" },
           { path: "realdir", kind: "directory" },
         ]);
         expect(yield* workspaceEntries.list({ cwd, directoryPath: "linkdir" })).toEqual({
           entries: [{ path: "linkdir/nested.txt", kind: "file" }],
+          truncated: false,
+        });
+        expect(yield* workspaceEntries.list({ cwd, directoryPath: "outside-link" })).toEqual({
+          entries: [{ path: "outside-link/outside.txt", kind: "file" }],
           truncated: false,
         });
       }),
@@ -352,7 +357,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
     );
 
     it.effect(
-      "rejects directory traversal, git internals, and symlinks outside the workspace",
+      "rejects directory traversal and git internals but opens symlinks outside the workspace",
       () =>
         Effect.gen(function* () {
           const cwd = yield* makeTempDir();
@@ -360,19 +365,18 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
           const fileSystem = yield* FileSystem.FileSystem;
           const path = yield* Path.Path;
           yield* writeTextFile(cwd, ".git/HEAD");
-          const platform = yield* HostProcess.Platform;
-          if (platform !== "win32") yield* fileSystem.symlink(outside, path.join(cwd, "external"));
+          yield* writeTextFile(outside, "shared.txt");
           const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
-          for (const directoryPath of [
-            "../",
-            outside,
-            ".git",
-            "missing",
-            ...(platform !== "win32" ? ["external"] : []),
-          ]) {
+          for (const directoryPath of ["../", outside, ".git", "missing"]) {
             const error = yield* workspaceEntries.list({ cwd, directoryPath }).pipe(Effect.flip);
             expect(error._tag).toBe("WorkspaceEntriesReadDirectoryError");
           }
+          if ((yield* HostProcess.Platform) === "win32") return;
+          yield* fileSystem.symlink(outside, path.join(cwd, "external"));
+          expect(yield* workspaceEntries.list({ cwd, directoryPath: "external" })).toEqual({
+            entries: [{ path: "external/shared.txt", kind: "file" }],
+            truncated: false,
+          });
         }),
     );
 
@@ -571,7 +575,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         }
       }),
     );
-    it.effect("skips symlinks that ignore rules hide or that leave the workspace", () =>
+    it.effect("skips symlinks that ignore rules hide but keeps ones that leave the workspace", () =>
       Effect.gen(function* () {
         if ((yield* HostProcess.Platform) === "win32") return;
         const cwd = yield* makeTempDir({ prefix: "t3code-workspace-symlinks-", git: true });
@@ -615,7 +619,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
           expect(paths).not.toContain("custom-link");
           expect(paths).not.toContain("tracked-link.ts");
           expect(paths).not.toContain("ignored-link");
-          expect(paths).not.toContain("outside-link");
+          expect(paths).toContain("outside-link");
         }
       }),
     );

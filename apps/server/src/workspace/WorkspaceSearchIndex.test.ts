@@ -554,7 +554,6 @@ it.effect("reads symlinks again after the watcher reports a change", () =>
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3code-symlink-watch-" });
-      const outside = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3code-outside-" });
       yield* fileSystem.writeFileString(path.join(cwd, "a.ts"), "");
       yield* fileSystem.symlink("a.ts", path.join(cwd, "old-link.ts"));
       const { directorySearch, notifyWatchers } = fakeSymlinkFinder([]);
@@ -572,9 +571,9 @@ it.effect("reads symlinks again after the watcher reports a change", () =>
       const afterEdit = yield* listedPaths(searchIndex);
       notifyWatchers([{ kind: "created", path: path.join(cwd, "new-link.ts") }]);
       const afterNotice = yield* listedPaths(searchIndex);
-      // fff reports a link replaced in place as modified.
+      // fff reports a link replaced in place as modified. A dangling target is dropped.
       yield* fileSystem.remove(path.join(cwd, "new-link.ts"));
-      yield* fileSystem.symlink(outside, path.join(cwd, "new-link.ts"));
+      yield* fileSystem.symlink("missing.ts", path.join(cwd, "new-link.ts"));
       notifyWatchers([{ kind: "modified", path: path.join(cwd, "new-link.ts") }]);
       const afterReplace = yield* listedPaths(searchIndex);
 
@@ -661,14 +660,13 @@ it.effect(
         const fileSystem = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3code-symlink-dupe-" });
-        const outside = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3code-outside-" });
         yield* fileSystem.makeDirectory(path.join(cwd, "src"));
         yield* fileSystem.symlink("src", path.join(cwd, "src-link"));
         // A link the scan rejects stays out even when the watcher indexed it.
-        yield* fileSystem.symlink(outside, path.join(cwd, "outside-link"));
+        yield* fileSystem.symlink("missing", path.join(cwd, "dangling-link"));
         fakeSymlinkFinder([], {
           indexed: [
-            { path: "outside-link", kind: "file" },
+            { path: "dangling-link", kind: "file" },
             { path: "src-link", kind: "file" },
             { path: "link-file.ts", kind: "file" },
           ],

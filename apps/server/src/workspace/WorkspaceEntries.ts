@@ -406,14 +406,14 @@ export const make = Effect.gen(function* () {
             const root = await NodeFSP.realpath(normalizedCwd);
             const directory = await NodeFSP.realpath(target.absolutePath);
             const relative = path.relative(root, directory);
+            // A folder reached through a symlink may live outside the workspace, such as a
+            // shared dbt_packages checkout. The requested path itself is still checked
+            // against the workspace root by resolveRelativePathWithinRoot above.
             if (
-              relative === ".." ||
-              relative.startsWith(`..${path.sep}`) ||
-              path.isAbsolute(relative) ||
               relative.split(path.sep).includes(".git") ||
               target.relativePath.split("/").includes(".git")
             ) {
-              throw new Error("Directory must be inside the workspace and outside .git.");
+              throw new Error("Directory must be outside .git.");
             }
             const children = await NodeFSP.readdir(directory, { withFileTypes: true });
             const isSameOrInside = (parent: string, child: string) => {
@@ -442,9 +442,9 @@ export const make = Effect.gen(function* () {
               const resolved = await NodeFSP.realpath(path.join(directory, name)).catch(
                 () => undefined,
               );
+              // Links may point outside the workspace; only .git targets are hidden.
               if (
                 resolved === undefined ||
-                !isSameOrInside(root, resolved) ||
                 path.relative(root, resolved).split(path.sep).includes(".git")
               ) {
                 return undefined;
