@@ -532,7 +532,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
     );
 
     it.effect.skipIf(!symlinksSupported)(
-      "rejects symlinks that resolve outside the workspace root",
+      "reads files through symlinks that resolve outside the workspace root",
       () =>
         Effect.gen(function* () {
           const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
@@ -540,39 +540,35 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
           const path = yield* Path.Path;
           const cwd = yield* makeTempDir;
           const outsideDir = yield* makeTempDir;
-          yield* writeTextFile(outsideDir, "secret.txt", "outside\n");
+          yield* writeTextFile(outsideDir, "shared.txt", "outside\n");
           yield* fileSystem.symlink(
-            path.join(outsideDir, "secret.txt"),
-            path.join(cwd, "linked-secret.txt"),
+            path.join(outsideDir, "shared.txt"),
+            path.join(cwd, "linked-shared.txt"),
           );
-
-          const error = yield* workspaceFileSystem
-            .readFile({ cwd, relativePath: "linked-secret.txt" })
-            .pipe(Effect.flip);
-          const resolvedWorkspaceRoot = yield* fileSystem.realPath(cwd);
-          const resolvedPath = yield* fileSystem.realPath(path.join(outsideDir, "secret.txt"));
-
-          expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
-          expect(error).toMatchObject({
-            workspaceRoot: cwd,
-            relativePath: "linked-secret.txt",
-            resolvedWorkspaceRoot,
-            resolvedPath,
-          });
-          expect("cause" in error).toBe(false);
-
           yield* fileSystem.symlink(outsideDir, path.join(cwd, "linked-dir"));
-          const missingChildError = yield* workspaceFileSystem
-            .readFile(
-              Object.assign(
-                { cwd, relativePath: "linked-dir/missing/t3.json" },
-                { allowMissing: true },
-              ),
-            )
-            .pipe(Effect.flip);
-          expect(missingChildError).toBeInstanceOf(
-            WorkspaceFileSystem.WorkspaceFilePathEscapeError,
+
+          const direct = yield* workspaceFileSystem.readFile({
+            cwd,
+            relativePath: "linked-shared.txt",
+          });
+          expect(direct).toMatchObject({
+            relativePath: "linked-shared.txt",
+            contents: "outside\n",
+          });
+
+          const nested = yield* workspaceFileSystem.readFile({
+            cwd,
+            relativePath: "linked-dir/shared.txt",
+          });
+          expect(nested).toMatchObject({ contents: "outside\n" });
+
+          const missing = yield* workspaceFileSystem.readFile(
+            Object.assign(
+              { cwd, relativePath: "linked-dir/missing/t3.json" },
+              { allowMissing: true },
+            ),
           );
+          expect(missing).toMatchObject({ exists: false, contents: "" });
         }),
     );
 

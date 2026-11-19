@@ -443,10 +443,8 @@ const scanDirectory = Effect.fn("WorkspaceSearchIndex.scanDirectory")(function* 
     ]).pipe(Effect.orElseSucceed(() => undefined));
     if (!target) continue;
     const relative = path.relative(root, target[0]);
+    // Links may point outside the workspace; only .git targets are skipped.
     if (
-      relative === ".." ||
-      relative.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relative) ||
       relative.split(path.sep).includes(".git") ||
       (target[1].type !== "Directory" && target[1].type !== "File")
     ) {

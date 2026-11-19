@@ -366,14 +366,9 @@ export const make = Effect.gen(function* () {
           cause,
         }),
     });
-    if (!isInsideRealRoot(realWorkspaceRoot, resolved.realTargetPath)) {
-      return yield* new WorkspaceFilePathEscapeError({
-        workspaceRoot: input.cwd,
-        relativePath: input.relativePath,
-        resolvedWorkspaceRoot: realWorkspaceRoot,
-        resolvedPath: resolved.realTargetPath,
-      });
-    }
+    // Reads follow symlinks out of the workspace, so files in a shared folder linked
+    // into the project open in the viewer. The requested path is still checked against
+    // the root above, and writes keep their own escape check in resolveWriteTarget.
     return {
       relativePath: target.relativePath,
       realTargetPath: resolved.exists ? resolved.realTargetPath : null,
