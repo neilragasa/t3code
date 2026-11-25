@@ -968,7 +968,7 @@ const makeAdvertisedCompactionHarness = Effect.fnUntraced(function* (
   );
   const protocolEvents = yield* Queue.unbounded<EffectAcpProtocol.AcpProtocolLogEvent>();
   // Resolves after the adapter records what the agent advertised, so the refusal is deterministic.
-  const commandsPublished = yield* Deferred.make<void>();
+  const commandsPublished = yield* Deferred.make<string>();
   const instanceId = ProviderInstanceId.make("acp-test-advertised-compaction");
   const threadId = ThreadId.make("thread-acp-advertised-compaction");
   const adapter = yield* makeAcpAdapterV2({
@@ -977,7 +977,7 @@ const makeAdvertisedCompactionHarness = Effect.fnUntraced(function* (
       driver: ACP_TEST_DRIVER,
       capabilities: AcpProviderCapabilitiesV2,
       compactViaAdvertisedCommand: true,
-      onAvailableCommandsUpdate: () => Deferred.succeed(commandsPublished, undefined),
+      onAvailableCommandsUpdate: (_, cwd) => Deferred.succeed(commandsPublished, cwd),
       makeRuntime: makeMockRuntime({
         childProcessSpawner,
         mockAgentPath,
@@ -1000,7 +1000,8 @@ const makeAdvertisedCompactionHarness = Effect.fnUntraced(function* (
     runtimePolicy,
   });
   const providerThread = yield* runtime.ensureThread({ threadId, modelSelection, runtimePolicy });
-  yield* Deferred.await(commandsPublished);
+  // Commands are reported with the session's cwd, since workspace skills depend on it.
+  assert.equal(yield* Deferred.await(commandsPublished), process.cwd());
   const now = yield* DateTime.now;
   let ordinal = 0;
   const nextPromptTexts = () =>

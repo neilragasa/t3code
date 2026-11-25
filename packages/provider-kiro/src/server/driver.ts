@@ -25,6 +25,7 @@ import {
 } from "@t3tools/provider-core/server/snapshotSettings";
 import type { ProviderTextGeneration } from "@t3tools/provider-core/server/textGeneration";
 import { type KiroAdapterV2DriverEnv, makeKiroAdapterV2Driver } from "./adapter.ts";
+import { makeKiroWorkspaceCommands } from "./commands.ts";
 import {
   buildInitialKiroProviderSnapshot,
   checkKiroProviderStatus,
@@ -128,9 +129,11 @@ export const KiroDriver: ProviderDriver<KiroSettings, KiroDriverEnv> = {
       ),
     );
 
+    const workspaceCommands = yield* makeKiroWorkspaceCommands;
     // "Kiro default" selects the default the snapshot read from Kiro's model list.
     const orchestrationAdapter = yield* makeKiroAdapterV2Driver(
       snapshot.getSnapshot.pipe(Effect.map((current) => kiroDefaultModelId(current.models))),
+      (commands, cwd) => workspaceCommands.record(cwd, commands),
     )
       .create({
         instanceId,
@@ -160,6 +163,11 @@ export const KiroDriver: ProviderDriver<KiroSettings, KiroDriverEnv> = {
       accentColor,
       enabled,
       snapshot,
+      workspaceRescans: workspaceCommands.rescans,
+      snapshotForCwd: (cwd) =>
+        snapshot.getSnapshot.pipe(
+          Effect.flatMap((machineSnapshot) => workspaceCommands.withCommands(machineSnapshot, cwd)),
+        ),
       orchestrationAdapter,
       textGeneration: unsupportedTextGeneration,
     } satisfies ProviderInstance;

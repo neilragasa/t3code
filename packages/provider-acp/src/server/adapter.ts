@@ -481,8 +481,10 @@ export interface AcpAdapterV2Flavor {
    * nor count as it starting.
    */
   readonly ignoreSessionUpdate?: (notification: EffectAcpSchema.SessionNotification) => boolean;
+  /** `cwd` is the session's, since an agent's commands can depend on its workspace. */
   readonly onAvailableCommandsUpdate?: (
     commands: ReadonlyArray<EffectAcpSchema.AvailableCommand>,
+    cwd: string,
   ) => Effect.Effect<void>;
   readonly onSessionConfigurationUpdate?: (
     configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
@@ -7374,7 +7376,12 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   );
                   return updated;
                 });
-                yield* flavor.onAvailableCommandsUpdate?.(advertisedCommands) ?? Effect.void;
+                yield* (
+                  flavor.onAvailableCommandsUpdate?.(
+                    advertisedCommands,
+                    input.runtimePolicy.cwd ?? process.cwd(),
+                  ) ?? Effect.void
+                );
               }
               if (
                 notification.update.sessionUpdate === "config_option_update" ||

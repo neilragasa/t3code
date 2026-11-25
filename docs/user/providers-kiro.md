@@ -58,3 +58,6 @@ one-time choice.
   message.
 - `/compact` uses Kiro's own compaction. Kiro also compacts on its own as the conversation fills its
   context.
+- The `/` menu lists the skills, steering files, custom agents and MCP prompts Kiro offers for the
+  project. Kiro reports them when a session starts, so the menu fills in after the first Kiro thread
+  in that project opens.
